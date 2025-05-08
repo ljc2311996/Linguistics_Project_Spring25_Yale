@@ -1,0 +1,85 @@
+---
+title: "Proj"
+output: html_document
+author: "Lofty-John Anyanwu"
+geometry: margin=1in
+---
+
+```{r setup, include=FALSE}
+```
+
+
+```{r include=FALSE}
+library(ape)
+library(ggtree)
+library(phangorn)
+library(TreeTools)
+library(Quartet)
+library(RColorBrewer)
+```
+
+```{r}
+##loading in the file and data
+raw_nexus <- read.nexus.data("C:/Users/NHR-LAGOS 3/Downloads/onlyextant.nex")
+raw_phydat<-raw_phydat <- phyDat(raw_nexus, type = "USER", levels = c("1", "2", "3"))
+
+#Levels are "1"= YES, "2" = No, "3" = Not Available. The parser passed missing data "?" as 4.
+```
+
+```{r, fig.width=20, fig.height=100}
+maxpar_tree <- pratchet(raw_phydat)
+maxpar_tree_rooted <- root(maxpar_tree, "Laal", resolve.root="TRUE") #root tree with outgroup Laal
+plot(maxpar_tree_rooted)
+```
+```{r,fig.width=10, fig.height=50}
+#Bootstrapping MP using pratchet
+set.seed(123)
+
+pratchet.bs <- function(x) {
+  pratchet(x, trace = 0)}
+  
+raw.pratchet.bs <- bootstrap.phyDat(raw_phydat, pratchet.bs, bs = 100)
+mp_bs_tree <- plotBS(maxpar_tree_rooted, raw.pratchet.bs)  # plotting clade support onto each node of the tree
+mp_bs_tree_consensus <- consensus(raw.pratchet.bs, p = 0.5)
+mp_bs_tree_consensus_rooted <- root(mp_bs_tree_consensus, "Laal", resolve.root= TRUE)
+
+
+supports <- prop.clades(mp_bs_tree_consensus_rooted, raw.pratchet.bs)  #computing bootstrap support for each clade in the consensus tree
+palette <- colorRampPalette(c("blue", "red"))(100)
+
+idx <- round((supports - 0.5) / 0.5 * 99) + 1 #map supports [0.5, 1.0] → palette indices [1,100]
+idx[idx < 1]   <- 1
+idx[idx > 100] <- 100
+node_cols <- palette[idx]
+
+#Plotting Consensus Tree
+plot(mp_bs_tree_consensus_rooted, cex = 0.7, no.margin = TRUE)
+ntips    <- length(mp_bs_tree_consensus_rooted$tip.label)
+nodelist <- (ntips + 1):(ntips + mp_bs_tree_consensus_rooted$Nnode)
+nodelabels(pch = 21,
+           bg  = node_cols,
+           node = nodelist,
+           cex = 1.5)
+legend("topright",
+       legend   = c("50%", "75%", "100%"),
+       pt.bg    = palette[c(1, 50, 100)],
+       pch      = 21,
+       pt.cex   = 1.5,
+       title    = "Bootstrap\nSupport")
+
+
+```
+```{r}
+ #Calculating CI and RI Indexes
+
+ci_value <- CI(maxpar_tree, raw_phydat)
+ri_value <- RI(maxpar_tree, raw_phydat)
+rc_value <- ci_value * ri_value
+
+# 4. Print results
+cat("Consistency Index (CI):       ", round(ci_value, 4), "\n")
+cat("Retention    Index (RI):       ", round(ri_value, 4), "\n")
+cat("Rescaled Consistency Index (RC):", round(rc_value, 4), "\n")
+
+```
+
